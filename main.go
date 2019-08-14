@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
+	"log"
+	"os"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -50,13 +54,94 @@ func watchCycle(path string) {
 		return
 	}
 
-	if lastDir != "" {
-		fmt.Printf("lastDir=%s\n", lastDir)
+	fmt.Printf("lastDir=%s\n", lastDir)
+	fullBuildPath := path + string(os.PathSeparator) + lastDir
+	if isBuildDirProcessed(fullBuildPath) {
+		fmt.Printf("Folder %s already processed.\n", fullBuildPath)
+		return
+	}
+
+	buildFinished, err := isBuildDirContainFinishedBuild(fullBuildPath)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if !buildFinished {
+		fmt.Printf("Folder %s contains build in the process.\n", fullBuildPath)
+		return
+	}
+
+	err = processFinishedBuild(fullBuildPath)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	appendBuildToProcessed(fullBuildPath)
+}
+
+func isBuildDirProcessed(buildDir string) bool {
+	file, err := os.OpenFile(processedBuildFile, os.O_RDONLY, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		scanLine := scanner.Text()
+
+		if strings.EqualFold(scanLine, buildDir) || strings.EqualFold(buildDir, scanLine) {
+			return true
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Fatal(err)
+	}
+
+	return false
+}
+
+func isBuildDirContainFinishedBuild(buildDir string) (bool, error) {
+	// Достаточно знать что есть дистрибутив - значит лог есть
+	rusDistribFoldername := buildDir + string(os.PathSeparator) + "Rus"
+
+	_, err := os.Stat(rusDistribFoldername)
+
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+
+	return true, err
+}
+
+func processFinishedBuild(buildDir string) error {
+	return nil
+}
+
+func appendBuildToProcessed(buildDir string) {
+	f, err := os.OpenFile(processedBuildFile, os.O_APPEND|os.O_WRONLY, 0600)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer f.Close()
+
+	if _, err = f.WriteString(buildDir); err != nil {
+		log.Fatal(err)
 	}
 }
 
+//var buildDir = "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev\\DOCsDev 17.0.0.0 24.05.2019 15.06\\logs\\CompactRelease"
+var buildDir = "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev"
+var processedBuildFile = "processed.txt"
+
 func main() {
-	//buildDir := "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev\\DOCsDev 17.0.0.0 24.05.2019 15.06\\logs\\CompactRelease"
-	buildDir := "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev\\"
+	//buildDir := "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev\\"
 	watchBuildDir(buildDir)
 }
