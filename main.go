@@ -8,8 +8,12 @@ import (
 )
 
 // Получение названия последней директории по указанному пути
-func getLastDirName(path string) (lastDir string) {
-	allFiles, _ := ioutil.ReadDir(path)
+func getLastDirName(path string) (string, error) {
+	allFiles, err := ioutil.ReadDir(path)
+
+	if err != nil {
+		return "", err
+	}
 
 	sort.SliceStable(allFiles, func(i, j int) bool {
 		diff := allFiles[i].ModTime().Sub(allFiles[j].ModTime())
@@ -18,28 +22,41 @@ func getLastDirName(path string) (lastDir string) {
 
 	for _, f := range allFiles {
 		if f.IsDir() {
-			return f.Name()
+			return f.Name(), nil
 		}
 	}
 
-	return ""
+	return "", fmt.Errorf("No directories found in %s", path)
 }
 
-func watchDir(path string) {
-	fmt.Println("Start watch folder ", path)
+// Функция цикличного наблюдения за директорией
+func watchBuildDir(path string) {
+	fmt.Printf("Start watch folder %s\n", path)
 	watcherInterval := time.Second * 5
 	for true {
-		lastDir := getLastDirName(path)
-		if lastDir != "" {
-			fmt.Println("lastDir=", lastDir)
-		}
+		watchCycle(path)
 
 		fmt.Printf("Sleep %s\n", watcherInterval)
 		time.Sleep(watcherInterval)
 	}
+}
 
+// Цикл обработки
+func watchCycle(path string) {
+	lastDir, err := getLastDirName(path)
+
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	if lastDir != "" {
+		fmt.Printf("lastDir=%s\n", lastDir)
+	}
 }
 
 func main() {
-	watchDir("\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev\\")
+	//buildDir := "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev\\DOCsDev 17.0.0.0 24.05.2019 15.06\\logs\\CompactRelease"
+	buildDir := "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev\\"
+	watchBuildDir(buildDir)
 }
