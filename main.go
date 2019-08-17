@@ -7,8 +7,11 @@ import (
 	"log"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
+
+	"gopkg.in/gomail.v2"
 
 	"github.com/TomOnTime/utfutil"
 )
@@ -131,7 +134,14 @@ func processFinishedBuild(buildDir string) error {
 	}
 
 	fmt.Printf("containMessage = %t\n", containMessage)
-	fmt.Printf("message=%s.\n", message)
+	fmt.Printf("message=%s\n", message)
+
+	if containMessage {
+		err = sendEmail(message)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -150,15 +160,68 @@ func getBuildMessage(buildDir string) (bool, string, error) {
 	scanner.Buffer(scannerBuffer, 1024*1024)
 
 	for scanner.Scan() {
-		logLine := scanner.Text()
+		logLine := strings.Trim(scanner.Text(), " ")
 
 		if strings.Contains(strings.ToUpper(logLine), "ПРЕДУПРЕЖДЕНИЙ") {
-			return true, logLine, nil
+			if logLine == "Предупреждений: 0" {
+				return false, logLine, nil
+			} else {
+				return true, logLine, nil
+			}
 		}
 
 	}
 
 	return false, "", scanner.Err()
+}
+
+func sendEmail(message string) error {
+	scanner, err := utfutil.NewScanner("credentials", utfutil.UTF8)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer scanner.Close()
+
+	from := ""
+	to := ""
+	smtp_server := ""
+	port := -1
+	user := ""
+	password := ""
+
+	{
+		scanner.Scan()
+		from = scanner.Text()
+		scanner.Scan()
+		to = scanner.Text()
+		scanner.Scan()
+		smtp_server = scanner.Text()
+		scanner.Scan()
+		port, _ = strconv.Atoi(scanner.Text())
+		scanner.Scan()
+		user = scanner.Text()
+		scanner.Scan()
+		password = scanner.Text()
+	}
+
+	m := gomail.NewMessage()
+	m.SetHeader("From", from)
+	m.SetHeader("To", to)
+	m.SetHeader("Subject", "Build monitor")
+	m.SetBody("text/html", message)
+
+	d := gomail.NewDialer(smtp_server, port, user, password)
+	d.SSL = true
+
+	// Send the email to Bob, Cora and Dan.
+	if err = d.DialAndSend(m); err != nil {
+		panic(err)
+	}
+
+	// TODO: Add email send
+	return nil
+
 }
 
 func appendBuildToProcessed(buildDir string) {
@@ -174,7 +237,8 @@ func appendBuildToProcessed(buildDir string) {
 	}
 }
 
-var buildDir = "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev"
+//var buildDir = "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev"
+var buildDir = "c:\\1"
 var processedBuildFile = "processed.txt"
 
 func main() {
