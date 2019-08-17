@@ -232,7 +232,7 @@ func appendBuildToProcessed(buildDir string) {
 
 	defer f.Close()
 
-	if _, err = f.WriteString(buildDir); err != nil {
+	if _, err = f.WriteString(buildDir + "\n"); err != nil {
 		log.Fatal(err)
 	}
 }
@@ -242,5 +242,7 @@ var buildDir = "c:\\1"
 var processedBuildFile = "processed.txt"
 
 func main() {
+	os.OpenFile(processedBuildFile, os.O_RDONLY|os.O_CREATE, 0666)
+
 	watchBuildDir(buildDir)
 }
