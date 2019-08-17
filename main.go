@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/TomOnTime/utfutil"
 )
 
 // Получение названия последней директории по указанному пути
@@ -121,7 +123,42 @@ func isBuildDirContainFinishedBuild(buildDir string) (bool, error) {
 }
 
 func processFinishedBuild(buildDir string) error {
+	fmt.Printf("Process build dir %s.\n", buildDir)
+
+	containMessage, message, err := getBuildMessage(buildDir)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("containMessage = %t\n", containMessage)
+	fmt.Printf("message=%s.\n", message)
+
 	return nil
+}
+
+func getBuildMessage(buildDir string) (bool, string, error) {
+	buildLogFileName := buildDir + string(os.PathSeparator) + "logs\\Release\\DOCs.log"
+
+	scanner, err := utfutil.NewScanner(buildLogFileName, utfutil.HTML5)
+	if err != nil {
+		return false, "", err
+	}
+
+	defer scanner.Close()
+
+	scannerBuffer := make([]byte, 0, 64*1024)
+	scanner.Buffer(scannerBuffer, 1024*1024)
+
+	for scanner.Scan() {
+		logLine := scanner.Text()
+
+		if strings.Contains(strings.ToUpper(logLine), "ПРЕДУПРЕЖДЕНИЙ") {
+			return true, logLine, nil
+		}
+
+	}
+
+	return false, "", scanner.Err()
 }
 
 func appendBuildToProcessed(buildDir string) {
@@ -137,11 +174,9 @@ func appendBuildToProcessed(buildDir string) {
 	}
 }
 
-//var buildDir = "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev\\DOCsDev 17.0.0.0 24.05.2019 15.06\\logs\\CompactRelease"
 var buildDir = "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev"
 var processedBuildFile = "processed.txt"
 
 func main() {
-	//buildDir := "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev\\"
 	watchBuildDir(buildDir)
 }
