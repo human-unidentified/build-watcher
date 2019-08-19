@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -176,7 +177,7 @@ func getBuildMessage(buildDir string) (bool, string, error) {
 }
 
 func sendEmail(message string) error {
-	scanner, err := utfutil.NewScanner("credentials", utfutil.UTF8)
+	scanner, err := utfutil.NewScanner(credentialsFileName, utfutil.UTF8)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -185,7 +186,7 @@ func sendEmail(message string) error {
 
 	from := ""
 	to := ""
-	smtp_server := ""
+	smtpServer := ""
 	port := -1
 	user := ""
 	password := ""
@@ -196,7 +197,7 @@ func sendEmail(message string) error {
 		scanner.Scan()
 		to = scanner.Text()
 		scanner.Scan()
-		smtp_server = scanner.Text()
+		smtpServer = scanner.Text()
 		scanner.Scan()
 		port, _ = strconv.Atoi(scanner.Text())
 		scanner.Scan()
@@ -211,15 +212,13 @@ func sendEmail(message string) error {
 	m.SetHeader("Subject", "Build monitor")
 	m.SetBody("text/html", message)
 
-	d := gomail.NewDialer(smtp_server, port, user, password)
+	d := gomail.NewDialer(smtpServer, port, user, password)
 	d.SSL = true
 
-	// Send the email to Bob, Cora and Dan.
 	if err = d.DialAndSend(m); err != nil {
 		panic(err)
 	}
 
-	// TODO: Add email send
 	return nil
 
 }
@@ -237,11 +236,19 @@ func appendBuildToProcessed(buildDir string) {
 	}
 }
 
-//var buildDir = "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev"
-var buildDir = "c:\\1"
+var buildDir = "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev"
 var processedBuildFile = "processed.txt"
+var credentialsFileName = "credentials"
 
 func main() {
+	startupDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	credentialsFileName = startupDir + string(os.PathSeparator) + credentialsFileName
+	processedBuildFile = startupDir + string(os.PathSeparator) + processedBuildFile
+
 	os.OpenFile(processedBuildFile, os.O_RDONLY|os.O_CREATE, 0666)
 
 	watchBuildDir(buildDir)
