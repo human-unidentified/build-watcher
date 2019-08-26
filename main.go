@@ -2,11 +2,9 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -14,28 +12,6 @@ import (
 
 	"github.com/TomOnTime/utfutil"
 )
-
-// Получение названия последней директории по указанному пути
-func getLastDirName(path string) (string, error) {
-	allFiles, err := ioutil.ReadDir(path)
-
-	if err != nil {
-		return "", err
-	}
-
-	sort.SliceStable(allFiles, func(i, j int) bool {
-		diff := allFiles[i].ModTime().Sub(allFiles[j].ModTime())
-		return diff > 0
-	})
-
-	for _, f := range allFiles {
-		if f.IsDir() {
-			return f.Name(), nil
-		}
-	}
-
-	return "", fmt.Errorf("No directories found in %s", path)
-}
 
 // Функция цикличного наблюдения за директорией
 func watchBuildDir(path string) {
@@ -51,7 +27,7 @@ func watchBuildDir(path string) {
 
 // Цикл обработки
 func watchCycle(path string) {
-	lastDir, err := getLastDirName(path)
+	lastDir, err := getLastBuildDirName(path)
 
 	if err != nil {
 		fmt.Println(err)
@@ -82,23 +58,7 @@ func watchCycle(path string) {
 		return
 	}
 
-	appendBuildToProcessed(fullBuildPath)
-}
-
-func isBuildDirContainFinishedBuild(buildDir string) (bool, error) {
-	// Достаточно знать что есть дистрибутив - значит лог есть
-	rusDistribFoldername := buildDir + string(os.PathSeparator) + "Rus"
-
-	_, err := os.Stat(rusDistribFoldername)
-
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-
-	return true, err
+	appendBuildDirToProcessed(fullBuildPath)
 }
 
 func processFinishedBuild(buildDir string) error {
@@ -111,8 +71,6 @@ func processFinishedBuild(buildDir string) error {
 
 	fmt.Printf("containMessage = %t\n", containMessage)
 	fmt.Printf("message=%s\n", message)
-
-	containMessage = true
 
 	if containMessage {
 		err = sendEmail(message)
