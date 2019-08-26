@@ -1,14 +1,12 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -87,29 +85,6 @@ func watchCycle(path string) {
 	appendBuildToProcessed(fullBuildPath)
 }
 
-func isBuildDirProcessed(buildDir string) bool {
-	file, err := os.OpenFile(processedBuildFile, os.O_RDONLY, 0666)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		scanLine := scanner.Text()
-
-		if strings.EqualFold(scanLine, buildDir) || strings.EqualFold(buildDir, scanLine) {
-			return true
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
-	}
-
-	return false
-}
-
 func isBuildDirContainFinishedBuild(buildDir string) (bool, error) {
 	// Достаточно знать что есть дистрибутив - значит лог есть
 	rusDistribFoldername := buildDir + string(os.PathSeparator) + "Rus"
@@ -136,6 +111,8 @@ func processFinishedBuild(buildDir string) error {
 
 	fmt.Printf("containMessage = %t\n", containMessage)
 	fmt.Printf("message=%s\n", message)
+
+	containMessage = true
 
 	if containMessage {
 		err = sendEmail(message)
@@ -177,45 +154,18 @@ func getBuildMessage(buildDir string) (bool, string, error) {
 }
 
 func sendEmail(message string) error {
-	scanner, err := utfutil.NewScanner(credentialsFileName, utfutil.UTF8)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer scanner.Close()
-
-	from := ""
-	to := ""
-	smtpServer := ""
-	port := -1
-	user := ""
-	password := ""
-
-	{
-		scanner.Scan()
-		from = scanner.Text()
-		scanner.Scan()
-		to = scanner.Text()
-		scanner.Scan()
-		smtpServer = scanner.Text()
-		scanner.Scan()
-		port, _ = strconv.Atoi(scanner.Text())
-		scanner.Scan()
-		user = scanner.Text()
-		scanner.Scan()
-		password = scanner.Text()
-	}
+	sendParameters := getSmtpSettings(credentialsFileName)
 
 	m := gomail.NewMessage()
-	m.SetHeader("From", from)
-	m.SetHeader("To", to)
+	m.SetHeader("From", sendParameters.from)
+	m.SetHeader("To", sendParameters.to)
 	m.SetHeader("Subject", "Build monitor")
 	m.SetBody("text/html", message)
 
-	d := gomail.NewDialer(smtpServer, port, user, password)
+	d := gomail.NewDialer(sendParameters.smtpServer, sendParameters.port, sendParameters.user, sendParameters.password)
 	d.SSL = true
 
-	if err = d.DialAndSend(m); err != nil {
+	if err := d.DialAndSend(m); err != nil {
 		panic(err)
 	}
 
@@ -223,22 +173,9 @@ func sendEmail(message string) error {
 
 }
 
-func appendBuildToProcessed(buildDir string) {
-	f, err := os.OpenFile(processedBuildFile, os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	defer f.Close()
-
-	if _, err = f.WriteString(buildDir + "\n"); err != nil {
-		log.Fatal(err)
-	}
-}
-
 var buildDir = "\\\\s6\\BuildArchive\\T-FLEX DOCs 17\\DOCsDev"
-var processedBuildFile = "processed.txt"
-var credentialsFileName = "credentials"
+var processedBuildFile = "data/processed-list.txt"
+var credentialsFileName = "data/credentials"
 
 func main() {
 	startupDir, err := filepath.Abs(filepath.Dir(os.Args[0]))
